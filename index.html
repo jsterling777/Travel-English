@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <!-- Hace que la página se vea bien en el ancho del iPhone (sin zoom raro) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Inglés de Viaje</title>
+
+  <!-- Datos para instalar la app (Android y navegadores modernos) -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+
+  <!-- Datos especiales que usa el iPhone al "Agregar a pantalla de inicio" -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Inglés Viaje">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ===== PANTALLA 1: INICIO ===== -->
+  <main id="pantalla-inicio" class="pantalla">
+    <h1>Inglés de Viaje ✈️</h1>
+    <p class="subtitulo">Elige dónde quieres practicar</p>
+
+    <!-- Los botones de escenarios se crean desde app.js -->
+    <div id="lista-escenarios"></div>
+  </main>
+
+  <!-- ===== PANTALLA 2: FRASES DE UN ESCENARIO ===== -->
+  <!-- "hidden" la oculta al principio; app.js la muestra cuando eliges un escenario -->
+  <main id="pantalla-frases" class="pantalla" hidden>
+    <header class="barra">
+      <button id="boton-volver" class="boton boton-volver">← Volver</button>
+      <h2 id="titulo-escenario"></h2>
+    </header>
+
+    <!-- Interruptor de velocidad lenta -->
+    <label class="interruptor">
+      <input type="checkbox" id="modo-lento">
+      <span>🐢 Escuchar lento</span>
+    </label>
+
+    <!-- app.js escribe aquí qué voces encontró en este dispositivo -->
+    <p id="voces-elegidas" class="voces"></p>
+
+    <!-- Aviso que aparece solo si el micrófono no funciona en este navegador -->
+    <p id="aviso-microfono" class="aviso" hidden></p>
+
+    <!-- Las tarjetas de frases se crean desde app.js -->
+    <div id="lista-frases"></div>
+  </main>
+
+  <!-- El orden importa: primero las frases, después la lógica que las usa -->
+  <script src="phrases.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

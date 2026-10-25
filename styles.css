@@ -1,0 +1,246 @@
+/* ===== COLORES =====
+   Los guardamos en "variables" (--nombre) para cambiarlos en un solo lugar. */
+:root {
+  --fondo: #f3f4f6;
+  --tarjeta: #ffffff;
+  --texto: #111827;
+  --texto-suave: #6b7280;
+  --azul: #2563eb;
+  --verde: #16a34a;
+  --amarillo: #ca8a04;
+  --rojo: #dc2626;
+  --borde: #e5e7eb;
+}
+
+/* Si el iPhone está en modo oscuro, cambiamos los colores */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #111827;
+    --tarjeta: #1f2937;
+    --texto: #f9fafb;
+    --texto-suave: #9ca3af;
+    --borde: #374151;
+  }
+}
+
+/* ===== BASE ===== */
+* {
+  box-sizing: border-box; /* el tamaño de una caja incluye su relleno */
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 18px;
+  background: var(--fondo);
+  color: var(--texto);
+  /* Evita que el texto quede debajo del "notch" o la barra inferior del iPhone */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  -webkit-text-size-adjust: 100%;
+}
+
+.pantalla {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Necesario para que "hidden" gane siempre */
+[hidden] {
+  display: none !important;
+}
+
+h1 {
+  font-size: 30px;
+  margin: 16px 0 4px;
+}
+
+.subtitulo {
+  color: var(--texto-suave);
+  margin: 0 0 24px;
+}
+
+/* ===== BOTONES ===== */
+.boton {
+  font: inherit;
+  font-weight: 600;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 18px;
+  min-height: 56px; /* grande para el pulgar */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.boton:active {
+  transform: scale(0.97); /* pequeño efecto al tocar */
+}
+
+/* Botones grandes del inicio */
+.boton-escenario {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 22px;
+  font-size: 24px;
+  text-align: left;
+  background: var(--tarjeta);
+  color: var(--texto);
+  border: 2px solid var(--borde);
+}
+
+.boton-escenario .emoji {
+  font-size: 40px;
+}
+
+.boton-escenario .progreso {
+  margin-left: auto;
+  font-size: 16px;
+  color: var(--texto-suave);
+}
+
+/* ===== BARRA SUPERIOR ===== */
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.barra h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.boton-volver {
+  background: var(--tarjeta);
+  color: var(--azul);
+  border: 2px solid var(--borde);
+}
+
+/* ===== INTERRUPTOR LENTO ===== */
+.interruptor {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: 20px;
+}
+
+.interruptor input {
+  width: 28px;
+  height: 28px;
+}
+
+.aviso {
+  background: #fef3c7;
+  color: #78350f;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+/* ===== TARJETA DE FRASE ===== */
+.tarjeta {
+  background: var(--tarjeta);
+  border: 2px solid var(--borde);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+/* Cuando ya dominas la frase, el borde se pone verde */
+.tarjeta.dominada {
+  border-color: var(--verde);
+}
+
+.ingles {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.espanol {
+  color: var(--texto-suave);
+  margin: 0 0 10px;
+}
+
+/* Botón secundario (más pequeño y con borde) para oír la traducción */
+.boton-espanol {
+  min-height: 44px;
+  padding: 8px 14px;
+  margin-bottom: 14px;
+  font-size: 16px;
+  background: transparent;
+  color: var(--azul);
+  border: 2px solid var(--borde);
+}
+
+/* Línea pequeña que dice qué voces se están usando */
+.voces {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--texto-suave);
+}
+
+.botones {
+  display: flex;
+  gap: 12px;
+}
+
+.botones .boton {
+  flex: 1; /* los dos botones ocupan el mismo ancho */
+  font-size: 19px;
+  padding: 14px 8px;
+  white-space: nowrap; /* que el texto no se parta en dos líneas */
+}
+
+.boton-escuchar {
+  background: var(--azul);
+  color: white;
+}
+
+.boton-repetir {
+  background: var(--verde);
+  color: white;
+}
+
+/* Mientras graba, el botón se pone rojo */
+.boton-repetir.grabando {
+  background: var(--rojo);
+}
+
+/* ===== RESULTADO DEL MICRÓFONO ===== */
+.resultado {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--fondo);
+  font-size: 17px;
+}
+
+.resultado .puntaje {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.resultado.bien .puntaje { color: var(--verde); }
+.resultado.casi .puntaje { color: var(--amarillo); }
+.resultado.mal  .puntaje { color: var(--rojo); }
+
+/* ===== CASILLA "YA LA DOMINO" ===== */
+.dominio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 18px;
+}
+
+.dominio input {
+  width: 26px;
+  height: 26px;
+}
