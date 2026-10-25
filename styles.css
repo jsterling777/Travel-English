@@ -227,6 +227,13 @@ h1 {
   font-weight: 700;
 }
 
+/* Línea pequeña con datos técnicos cuando hay un error */
+.resultado .detalles {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+
 .resultado.bien .puntaje { color: var(--verde); }
 .resultado.casi .puntaje { color: var(--amarillo); }
 .resultado.mal  .puntaje { color: var(--rojo); }
