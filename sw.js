@@ -5,7 +5,7 @@
 
 // IMPORTANTE: cada vez que cambies un archivo de la app, sube este número
 // (v1 -> v2) para que el iPhone descargue la versión nueva.
-const VERSION = "ingles-viaje-v7";
+const VERSION = "ingles-viaje-v8";
 
 const ARCHIVOS = [
   "./",
@@ -14,17 +14,28 @@ const ARCHIVOS = [
   "phrases.js",
   "app.js",
   "manifest.json",
+  "audio/info.js",
   "icons/icon-180.png",
   "icons/icon-192.png",
   "icons/icon-512.png",
 ];
+
+// La lista de audios grabados está en audio/info.js (INFO_AUDIOS.archivos)
+importScripts("audio/info.js");
 
 // Al instalarse: guardamos todos los archivos.
 // "cache: reload" obliga a descargarlos de nuevo (y no usar copias viejas).
 self.addEventListener("install", (evento) => {
   evento.waitUntil(
     caches.open(VERSION).then((cache) =>
-      cache.addAll(ARCHIVOS.map((archivo) => new Request(archivo, { cache: "reload" })))
+      cache.addAll(ARCHIVOS.map((archivo) => new Request(archivo, { cache: "reload" }))).then(() =>
+        // Los audios se guardan uno por uno: si falta alguno, la app igual se instala
+        Promise.all(
+          INFO_AUDIOS.archivos.map((audio) =>
+            cache.add(new Request(audio, { cache: "reload" })).catch(() => {})
+          )
+        )
+      )
     )
   );
   self.skipWaiting();

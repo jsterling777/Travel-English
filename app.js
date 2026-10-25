@@ -82,6 +82,11 @@ function mostrarEscenario(escenario) {
 
   escenario.frases.forEach((frase, indice) => {
     lista.appendChild(crearTarjeta(escenario, frase, indice));
+
+    // Descargamos sus audios por adelantado para que suenen sin demora
+    [rutaDeAudio(frase.en, "en"), rutaDeAudio(frase.es, "es")].forEach((ruta) => {
+      if (audiosDisponibles.has(ruta)) cargarAudio(ruta).catch(() => {});
+    });
   });
 
   pantallaInicio.hidden = true;
@@ -260,6 +265,14 @@ function cargarVoces() {
   vozIngles = elegirVoz("en", IDIOMAS_INGLES);
   vozEspanol = elegirVoz("es", IDIOMAS_ESPANOL);
 
+  // Si hay audios grabados, esos son los que se oyen
+  if (typeof INFO_AUDIOS !== "undefined") {
+    document.getElementById("voces-elegidas").textContent =
+      "Voz en inglés: " + INFO_AUDIOS.vozIngles + " (Reino Unido)" +
+      " · Voz en español: " + INFO_AUDIOS.vozEspanol;
+    return;
+  }
+
   const describir = (voz) => (voz ? voz.name + " (" + voz.lang + ")" : "no encontrada");
   document.getElementById("voces-elegidas").textContent =
     "Voz en inglés: " + describir(vozIngles) +
@@ -280,14 +293,105 @@ function cambiarModoAudio(modo) {
 
 let ultimoUsoDeVoz = 0; // momento en que la app habló por última vez
 
+// --- Audios grabados (Web Audio) ---
+// En iPhone, después de usar la voz del navegador el micrófono deja de
+// funcionar. Por eso preferimos audios grabados (carpeta audio/, creados con
+// herramientas/generar_audios.py) que suenan por otro camino: Web Audio.
+
+let contextoAudio = null;          // el "reproductor" de Web Audio
+let fuenteActual = null;           // el audio que está sonando ahora
+const audiosCargados = new Map();  // audios ya descargados, para no repetir
+const audiosDisponibles = new Set(
+  typeof INFO_AUDIOS !== "undefined" ? INFO_AUDIOS.archivos : []
+);
+
+// "¿Dónde está?" -> "donde-esta" (igual que en generar_audios.py)
+function nombreDeAudio(texto) {
+  return texto
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // quita los acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function rutaDeAudio(texto, carpeta) {
+  return "audio/" + carpeta + "/" + nombreDeAudio(texto) + ".m4a";
+}
+
+function obtenerContextoAudio() {
+  const Contexto = window.AudioContext || window.webkitAudioContext;
+  if (!contextoAudio && Contexto) contextoAudio = new Contexto();
+  return contextoAudio;
+}
+
+// Descarga y prepara un audio (solo una vez por archivo)
+function cargarAudio(ruta) {
+  if (!audiosCargados.has(ruta)) {
+    const promesa = fetch(ruta)
+      .then((respuesta) => {
+        if (!respuesta.ok) throw new Error("No existe " + ruta);
+        return respuesta.arrayBuffer();
+      })
+      .then((datos) => obtenerContextoAudio().decodeAudioData(datos));
+    promesa.catch(() => audiosCargados.delete(ruta)); // si falla, se reintenta otra vez
+    audiosCargados.set(ruta, promesa);
+  }
+  return audiosCargados.get(ruta);
+}
+
+// Detiene cualquier sonido de la app (audio grabado o voz del navegador)
+function detenerSonido() {
+  if (fuenteActual) {
+    try { fuenteActual.stop(); } catch (error) {}
+    fuenteActual = null;
+  }
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+function haySonido() {
+  return Boolean(fuenteActual) ||
+    ("speechSynthesis" in window && (speechSynthesis.speaking || speechSynthesis.pending));
+}
+
 function hablar(texto, idioma) {
+  detenerSonido();
+  cambiarModoAudio("playback");
+  ultimoUsoDeVoz = Date.now();
+
+  const carpeta = idioma === "es" ? "es" : (casillaLento.checked ? "lento" : "en");
+  const ruta = rutaDeAudio(texto, carpeta);
+  const contexto = audiosDisponibles.has(ruta) ? obtenerContextoAudio() : null;
+
+  // Sin audio grabado para esta frase: usamos la voz del navegador
+  if (!contexto) {
+    hablarConVozDelNavegador(texto, idioma);
+    return;
+  }
+
+  contexto.resume(); // iPhone exige "despertar" el audio dentro del toque
+  cargarAudio(ruta)
+    .then((sonido) => {
+      const fuente = contexto.createBufferSource();
+      fuente.buffer = sonido;
+      fuente.connect(contexto.destination);
+      fuente.onended = () => {
+        if (fuenteActual === fuente) fuenteActual = null;
+        // Apagamos el reproductor al terminar para liberar el audio del iPhone
+        if (!fuenteActual) contexto.suspend();
+      };
+      fuenteActual = fuente;
+      fuente.start();
+    })
+    .catch(() => hablarConVozDelNavegador(texto, idioma));
+}
+
+// Respaldo: la voz del navegador (speechSynthesis)
+function hablarConVozDelNavegador(texto, idioma) {
   if (!("speechSynthesis" in window)) {
     alert("Tu navegador no puede leer en voz alta.");
     return;
   }
-  speechSynthesis.cancel(); // detiene cualquier frase que esté sonando
-  cambiarModoAudio("playback");
-  ultimoUsoDeVoz = Date.now();
 
   const mensaje = new SpeechSynthesisUtterance(texto);
   if (idioma === "es") {
@@ -363,8 +467,12 @@ function escuchar(fraseOriginal, boton, resultado) {
 
   // Si la voz de la app está sonando, la callamos y esperamos un momento:
   // en iPhone el micrófono falla ("aborted") si el audio sigue ocupado.
-  if (speechSynthesis.speaking || speechSynthesis.pending) {
-    speechSynthesis.cancel();
+  const estabaSonando = haySonido();
+  detenerSonido();
+  // Apagamos el reproductor de audios para que el iPhone libere el audio
+  if (contextoAudio && contextoAudio.state === "running") contextoAudio.suspend();
+
+  if (estabaSonando) {
     setTimeout(() => iniciarGrabacion(fraseOriginal, boton, resultado, false), 400);
   } else {
     iniciarGrabacion(fraseOriginal, boton, resultado, false);
@@ -593,7 +701,7 @@ if (!Reconocimiento) {
 }
 
 document.getElementById("boton-volver").addEventListener("click", () => {
-  speechSynthesis.cancel();
+  detenerSonido();
   if (grabacionActual) grabacionActual.stop();
   mostrarInicio();
 });
