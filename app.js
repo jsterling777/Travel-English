@@ -266,12 +266,28 @@ function cargarVoces() {
     " · Voz en español: " + describir(vozEspanol);
 }
 
+// --- Modo de audio del iPhone ---
+// Safari decide solo si el iPhone está en modo "reproducir" o "reproducir y
+// grabar". Después de usar la voz se queda en "reproducir" y el micrófono
+// se corta ("aborted"). Desde iOS 17 podemos pedir el modo que necesitamos.
+function cambiarModoAudio(modo) {
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = modo;
+  } catch (error) {
+    // Navegadores sin esta función: no pasa nada
+  }
+}
+
+let ultimoUsoDeVoz = 0; // momento en que la app habló por última vez
+
 function hablar(texto, idioma) {
   if (!("speechSynthesis" in window)) {
     alert("Tu navegador no puede leer en voz alta.");
     return;
   }
   speechSynthesis.cancel(); // detiene cualquier frase que esté sonando
+  cambiarModoAudio("playback");
+  ultimoUsoDeVoz = Date.now();
 
   const mensaje = new SpeechSynthesisUtterance(texto);
   if (idioma === "es") {
@@ -341,6 +357,9 @@ function escuchar(fraseOriginal, boton, resultado) {
     grabacionActual.stop();
     return;
   }
+
+  // Pedimos al iPhone el modo "reproducir y grabar" antes de abrir el micrófono
+  cambiarModoAudio("play-and-record");
 
   // Si la voz de la app está sonando, la callamos y esperamos un momento:
   // en iPhone el micrófono falla ("aborted") si el audio sigue ocupado.
@@ -439,7 +458,10 @@ function iniciarGrabacion(fraseOriginal, boton, resultado, esReintento) {
   grabacion.onend = () => {
     grabacionActual = null;
     if (reintentar) {
-      setTimeout(() => iniciarGrabacion(fraseOriginal, boton, resultado, true), 300);
+      // Si la voz habló hace poco, esperamos más para que el iPhone suelte el audio
+      const espera = Date.now() - ultimoUsoDeVoz < 15000 ? 900 : 300;
+      cambiarModoAudio("play-and-record");
+      setTimeout(() => iniciarGrabacion(fraseOriginal, boton, resultado, true), espera);
       return;
     }
     boton.classList.remove("grabando");
