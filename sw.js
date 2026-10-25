@@ -5,7 +5,7 @@
 
 // IMPORTANTE: cada vez que cambies un archivo de la app, sube este número
 // (v1 -> v2) para que el iPhone descargue la versión nueva.
-const VERSION = "ingles-viaje-v9";
+const VERSION = "ingles-viaje-v10";
 
 const ARCHIVOS = [
   "./",
@@ -53,10 +53,11 @@ self.addEventListener("activate", (evento) => {
   self.clients.claim();
 });
 
-// Cada vez que la app pide un archivo: primero buscamos la copia guardada,
+// Cada vez que la app pide un archivo: primero buscamos la copia guardada
+// ("ignoreSearch" hace que "./?audio=2" use la misma copia que "./"),
 // y si no existe, lo pedimos a internet.
 self.addEventListener("fetch", (evento) => {
   evento.respondWith(
-    caches.match(evento.request).then((guardado) => guardado || fetch(evento.request))
+    caches.match(evento.request, { ignoreSearch: true }).then((guardado) => guardado || fetch(evento.request))
   );
 });

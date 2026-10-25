@@ -1,3 +1,6 @@
+// Número de versión que se muestra en pantalla. Súbelo junto con VERSION en sw.js.
+const VERSION_APP = 10;
+
 // =====================================================================
 // 1. GUARDAR Y LEER EL PROGRESO (localStorage)
 // =====================================================================
@@ -265,25 +268,43 @@ function cargarVoces() {
   vozIngles = elegirVoz("en", IDIOMAS_INGLES);
   vozEspanol = elegirVoz("es", IDIOMAS_ESPANOL);
 
-  // Si hay audios grabados, esos son los que se oyen
+  let texto;
   if (typeof INFO_AUDIOS !== "undefined") {
-    document.getElementById("voces-elegidas").textContent =
-      "Voz en inglés: " + INFO_AUDIOS.vozIngles + " (Reino Unido)" +
+    // Si hay audios grabados, esos son los que se oyen
+    texto = "Voz en inglés: " + INFO_AUDIOS.vozIngles + " (Reino Unido)" +
       " · Voz en español: " + INFO_AUDIOS.vozEspanol;
-    return;
+  } else {
+    const describir = (voz) => (voz ? voz.name + " (" + voz.lang + ")" : "no encontrada");
+    texto = "Voz en inglés: " + describir(vozIngles) +
+      " · Voz en español: " + describir(vozEspanol);
   }
-
-  const describir = (voz) => (voz ? voz.name + " (" + voz.lang + ")" : "no encontrada");
+  // La versión y la variante sirven para saber qué estás usando si algo falla
   document.getElementById("voces-elegidas").textContent =
-    "Voz en inglés: " + describir(vozIngles) +
-    " · Voz en español: " + describir(vozEspanol);
+    texto + " · Versión " + VERSION_APP + " · audio " + VARIANTE_AUDIO;
 }
 
 // --- Modo de audio del iPhone ---
 // Safari decide solo si el iPhone está en modo "reproducir" o "reproducir y
-// grabar". Desde iOS 17 podemos pedirle un modo: "play-and-record" antes de
-// grabar, y "auto" (que decida Safari) el resto del tiempo.
-function cambiarModoAudio(modo) {
+// grabar". Desde iOS 17 podemos pedirle un modo, pero en las pruebas eso a
+// veces empeoró las cosas (bajó el volumen y cortó el micrófono).
+// Por eso hay tres variantes que se eligen desde el link:
+//   ?audio=1  -> no tocar el modo (predeterminada)
+//   ?audio=2  -> "play-and-record" al grabar, "auto" el resto del tiempo
+//   ?audio=3  -> "playback" al hablar, "play-and-record" al grabar
+const VARIANTE_AUDIO = ["1", "2", "3"].includes(new URLSearchParams(location.search).get("audio"))
+  ? new URLSearchParams(location.search).get("audio")
+  : "1";
+
+const MODOS_POR_VARIANTE = {
+  "1": {},
+  "2": { hablar: "auto", grabar: "play-and-record", terminar: "auto" },
+  "3": { hablar: "playback", grabar: "play-and-record" },
+};
+
+// "accion" es "hablar", "grabar" o "terminar" (terminar de grabar)
+function prepararAudioPara(accion) {
+  const modo = MODOS_POR_VARIANTE[VARIANTE_AUDIO][accion];
+  if (!modo) return;
   try {
     if (navigator.audioSession) navigator.audioSession.type = modo;
   } catch (error) {
@@ -374,7 +395,7 @@ function haySonido() {
 
 function hablar(texto, idioma) {
   detenerSonido();
-  cambiarModoAudio("auto");
+  prepararAudioPara("hablar");
   ultimoUsoDeVoz = Date.now();
 
   const carpeta = idioma === "es" ? "es" : (casillaLento.checked ? "lento" : "en");
@@ -491,7 +512,7 @@ function escuchar(fraseOriginal, boton, resultado) {
   }
 
   // Pedimos al iPhone el modo "reproducir y grabar" antes de abrir el micrófono
-  cambiarModoAudio("play-and-record");
+  prepararAudioPara("grabar");
 
   // Si la voz de la app está sonando, la callamos y esperamos un momento:
   // en iPhone el micrófono falla ("aborted") si el audio sigue ocupado.
@@ -539,7 +560,8 @@ function mostrarError(resultado, codigo, detectoVoz, esReintento) {
     " · reintento: " + (esReintento ? "sí" : "no") +
     " · voz hace " + segundosDesdeVoz + " s" +
     " · reproductor: " + (contextoAudio ? contextoAudio.state : "cerrado") +
-    " · modo: " + (navigator.audioSession ? navigator.audioSession.type : "n/a");
+    " · modo: " + (navigator.audioSession ? navigator.audioSession.type : "n/a") +
+    " · v" + VERSION_APP + " audio " + VARIANTE_AUDIO;
 
   resultado.append(mensaje, detalles);
 }
@@ -619,13 +641,13 @@ function iniciarGrabacion(fraseOriginal, boton, resultado, esReintento) {
     if (reintentar) {
       // Si la voz habló hace poco, esperamos más para que el iPhone suelte el audio
       const espera = Date.now() - ultimoUsoDeVoz < 15000 ? 900 : 300;
-      cambiarModoAudio("play-and-record");
+      prepararAudioPara("grabar");
       setTimeout(() => iniciarGrabacion(fraseOriginal, boton, resultado, true), espera);
       return;
     }
     boton.classList.remove("grabando");
     boton.textContent = "🎤 Repetir";
-    cambiarModoAudio("auto"); // terminamos de grabar: que Safari decida otra vez
+    prepararAudioPara("terminar"); // terminamos de grabar
     if (terminado) return;
 
     if (ultimoBorrador) {
@@ -760,6 +782,16 @@ document.getElementById("boton-volver").addEventListener("click", () => {
 // Registramos el "service worker" para que la app funcione sin internet.
 // Solo funciona en https:// o en localhost.
 if ("serviceWorker" in navigator) {
+  // Si ya había una versión guardada y llega una nueva, recargamos la página
+  // una vez para usarla (así no tienes que recargar a mano dos veces).
+  const habiaVersionGuardada = Boolean(navigator.serviceWorker.controller);
+  let yaRecargo = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (habiaVersionGuardada && !yaRecargo) {
+      yaRecargo = true;
+      location.reload();
+    }
+  });
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
