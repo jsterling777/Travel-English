@@ -5,7 +5,7 @@
 
 // IMPORTANTE: cada vez que cambies un archivo de la app, sube este número
 // (v1 -> v2) para que el iPhone descargue la versión nueva.
-const VERSION = "ingles-viaje-v2";
+const VERSION = "ingles-viaje-v3";
 
 const ARCHIVOS = [
   "./",
@@ -19,10 +19,13 @@ const ARCHIVOS = [
   "icons/icon-512.png",
 ];
 
-// Al instalarse: guardamos todos los archivos
+// Al instalarse: guardamos todos los archivos.
+// "cache: reload" obliga a descargarlos de nuevo (y no usar copias viejas).
 self.addEventListener("install", (evento) => {
   evento.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(ARCHIVOS))
+    caches.open(VERSION).then((cache) =>
+      cache.addAll(ARCHIVOS.map((archivo) => new Request(archivo, { cache: "reload" })))
+    )
   );
   self.skipWaiting();
 });

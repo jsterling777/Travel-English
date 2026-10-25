@@ -296,6 +296,31 @@ if ("speechSynthesis" in window) {
 const Reconocimiento = window.SpeechRecognition || window.webkitSpeechRecognition;
 let grabacionActual = null; // para no grabar dos frases a la vez
 
+// Mensajes en español para cada error que puede dar el micrófono
+function explicarError(codigo) {
+  switch (codigo) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return estaInstalada()
+        ? "No tengo permiso para usar el micrófono. Abre la app desde Safari en vez del ícono de la pantalla de inicio."
+        : "No tengo permiso para usar el micrófono. Toca aA → Ajustes del sitio web → Micrófono → Permitir. " +
+          "Revisa también que el dictado esté activado (Ajustes → General → Teclado → Activar dictado).";
+    case "no-speech":
+      return "No te escuché. Toca 🎤 Repetir e inténtalo otra vez.";
+    case "aborted":
+      return "El iPhone cortó la grabación. Toca 🎤 Repetir otra vez y espera a ver \"Habla ahora…\" antes de hablar." +
+        (estaInstalada() ? " Si sigue pasando, abre la app desde Safari." : "");
+    case "audio-capture":
+      return "Otra cosa está usando el micrófono (una llamada, una app de grabación o unos AirPods). Ciérrala e inténtalo de nuevo.";
+    case "network":
+      return "No pude conectarme al servicio de voz de Apple. Revisa tu conexión a internet.";
+    case "language-not-supported":
+      return "El dictado en inglés no está activo. Agrega el teclado English (US) en Ajustes → General → Teclado.";
+    default:
+      return "Hubo un problema con el micrófono (" + codigo + "). Toca 🎤 Repetir otra vez.";
+  }
+}
+
 function escuchar(fraseOriginal, boton, resultado) {
   if (!Reconocimiento) {
     mostrarAvisoMicrofono();
@@ -308,12 +333,25 @@ function escuchar(fraseOriginal, boton, resultado) {
     return;
   }
 
-  speechSynthesis.cancel(); // que no se mezcle la voz de la app con la tuya
+  // Si la voz de la app está sonando, la callamos y esperamos un momento:
+  // en iPhone el micrófono falla ("aborted") si el audio sigue ocupado.
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    speechSynthesis.cancel();
+    setTimeout(() => iniciarGrabacion(fraseOriginal, boton, resultado, false), 400);
+  } else {
+    iniciarGrabacion(fraseOriginal, boton, resultado, false);
+  }
+}
 
+// "esReintento" evita reintentar más de una vez seguida
+function iniciarGrabacion(fraseOriginal, boton, resultado, esReintento) {
   const grabacion = new Reconocimiento();
   grabacion.lang = "en-US";
   grabacion.interimResults = false; // solo queremos el resultado final
   grabacion.maxAlternatives = 3;    // pedimos 3 posibles interpretaciones
+
+  const momentoInicio = Date.now();
+  let reintentar = false;
 
   grabacionActual = grabacion;
   boton.classList.add("grabando");
@@ -338,24 +376,26 @@ function escuchar(fraseOriginal, boton, resultado) {
   };
 
   grabacion.onerror = (evento) => {
-    resultado.className = "resultado mal";
-    if (evento.error === "not-allowed" || evento.error === "service-not-allowed") {
-      resultado.textContent =
-        "No tengo permiso para usar el micrófono. Revisa los permisos de Safari" +
-        (estaInstalada() ? " o abre la app desde Safari en vez de la pantalla de inicio." : ".");
-    } else if (evento.error === "no-speech") {
-      resultado.textContent = "No te escuché. Toca 🎤 Repetir e inténtalo otra vez.";
-    } else {
-      resultado.textContent = "Hubo un problema con el micrófono (" + evento.error + ").";
+    // Si el iPhone corta la grabación apenas empieza (por ejemplo, por el
+    // aviso de permiso), reintentamos una vez sin que tengas que tocar nada.
+    if (evento.error === "aborted" && !esReintento && Date.now() - momentoInicio < 2000) {
+      reintentar = true;
+      return;
     }
+    resultado.className = "resultado mal";
+    resultado.textContent = explicarError(evento.error);
   };
 
   grabacion.onend = () => {
     grabacionActual = null;
+    if (reintentar) {
+      setTimeout(() => iniciarGrabacion(fraseOriginal, boton, resultado, true), 300);
+      return;
+    }
     boton.classList.remove("grabando");
     boton.textContent = "🎤 Repetir";
     if (resultado.textContent === "Habla ahora…") {
-      resultado.textContent = "No te escuché. Toca 🎤 Repetir e inténtalo otra vez.";
+      resultado.textContent = explicarError("no-speech");
     }
   };
 
