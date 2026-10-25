@@ -191,9 +191,12 @@ const VOCES_FEMENINAS = [
   "soledad", "paulina", "angélica", "angelica", "salome", "salomé", "dalia",
   "paloma", "marisol", "mónica", "monica", "isabela", "francisca", "ximena",
   "google español de estados unidos",
-  // Inglés
-  "samantha", "ava", "allison", "susan", "zoe", "nicky", "joelle", "serena",
-  "karen", "moira", "tessa", "kate", "aria", "jenny", "zira",
+  // Inglés británico
+  "kate", "serena", "martha", "stephanie", "libby", "sonia", "hazel", "maisie",
+  "google uk english female",
+  // Otros acentos de inglés (por si el dispositivo no tiene voces británicas)
+  "samantha", "ava", "allison", "susan", "zoe", "nicky", "joelle",
+  "karen", "moira", "tessa", "aria", "jenny", "zira",
   "google us english",
 ];
 
@@ -207,7 +210,8 @@ const VOCES_RARAS = [
 
 // Orden de idiomas preferidos: el primero vale más puntos
 const IDIOMAS_ESPANOL = ["es-CO", "es-419", "es-MX", "es-US"];
-const IDIOMAS_INGLES = ["en-US", "en-GB", "en-AU", "en-CA"];
+// Inglés del Reino Unido primero; si no hay, Irlanda, Australia y EE. UU.
+const IDIOMAS_INGLES = ["en-GB", "en-IE", "en-AU", "en-US"];
 
 let vozIngles = null;
 let vozEspanol = null;
@@ -226,7 +230,9 @@ function puntuarVoz(voz, idiomasPreferidos) {
 
   let puntos = 0;
   const posicion = idiomasPreferidos.indexOf(idioma);
-  if (posicion !== -1) puntos += (idiomasPreferidos.length - posicion) * 10;
+  // El idioma pesa más que el género: un acento británico de hombre
+  // le gana a una voz de mujer de otro país.
+  if (posicion !== -1) puntos += (idiomasPreferidos.length - posicion) * 30;
   if (VOCES_FEMENINAS.some((femenina) => nombre.includes(femenina))) puntos += 25;
   if (/enhanced|premium|mejorada|natural/.test(nombre)) puntos += 5;
   return puntos;
@@ -273,7 +279,7 @@ function hablar(texto, idioma) {
     mensaje.voice = vozEspanol;
     mensaje.rate = 0.95;
   } else {
-    mensaje.lang = vozIngles ? vozIngles.lang : "en-US";
+    mensaje.lang = vozIngles ? vozIngles.lang : "en-GB";
     mensaje.voice = vozIngles;
     mensaje.rate = casillaLento.checked ? 0.6 : 0.95; // 1 = velocidad normal
   }
@@ -346,7 +352,7 @@ function escuchar(fraseOriginal, boton, resultado) {
 // "esReintento" evita reintentar más de una vez seguida
 function iniciarGrabacion(fraseOriginal, boton, resultado, esReintento) {
   const grabacion = new Reconocimiento();
-  grabacion.lang = "en-US";
+  grabacion.lang = "en-GB"; // inglés británico, igual que la voz
   grabacion.interimResults = false; // solo queremos el resultado final
   grabacion.maxAlternatives = 3;    // pedimos 3 posibles interpretaciones
 
@@ -443,6 +449,8 @@ const EQUIVALENCIAS = {
   "i'm": "i am", "it's": "it is", "what's": "what is", "isn't": "is not",
   "don't": "do not", "can't": "can not", "cannot": "can not",
   "i'd": "i would", "i'll": "i will", "we'd": "we would",
+  "i've": "i have", "we've": "we have", "it'll": "it will", "couldn't": "could not",
+  "flight's": "flight has", "aren't": "are not",
   "wifi": "wi fi", "checkin": "check in", "checkout": "check out",
   "cancelled": "canceled",
 };

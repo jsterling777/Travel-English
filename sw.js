@@ -5,7 +5,7 @@
 
 // IMPORTANTE: cada vez que cambies un archivo de la app, sube este número
 // (v1 -> v2) para que el iPhone descargue la versión nueva.
-const VERSION = "ingles-viaje-v3";
+const VERSION = "ingles-viaje-v5";
 
 const ARCHIVOS = [
   "./",
