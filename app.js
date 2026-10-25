@@ -303,7 +303,8 @@ const Reconocimiento = window.SpeechRecognition || window.webkitSpeechRecognitio
 let grabacionActual = null; // para no grabar dos frases a la vez
 
 // Mensajes en español para cada error que puede dar el micrófono
-function explicarError(codigo) {
+// "detectoVoz" dice si el micrófono notó que hablabas (ayuda a saber qué falló)
+function explicarError(codigo, detectoVoz) {
   switch (codigo) {
     case "not-allowed":
     case "service-not-allowed":
@@ -312,7 +313,9 @@ function explicarError(codigo) {
         : "No tengo permiso para usar el micrófono. Toca aA → Ajustes del sitio web → Micrófono → Permitir. " +
           "Revisa también que el dictado esté activado (Ajustes → General → Teclado → Activar dictado).";
     case "no-speech":
-      return "No te escuché. Toca 🎤 Repetir e inténtalo otra vez.";
+      return detectoVoz
+        ? "Te escuché, pero no entendí las palabras. Habla un poco más despacio y claro."
+        : "No te escuché. Espera a ver \"🎙️ Habla ahora…\" y habla cerca del micrófono, sin pausas largas.";
     case "aborted":
       return "El iPhone cortó la grabación. Toca 🎤 Repetir otra vez y espera a ver \"Habla ahora…\" antes de hablar." +
         (estaInstalada() ? " Si sigue pasando, abre la app desde Safari." : "");
@@ -349,47 +352,88 @@ function escuchar(fraseOriginal, boton, resultado) {
   }
 }
 
+// Elige, entre las interpretaciones del micrófono, la que más se parece a la frase
+function mejorInterpretacion(fraseOriginal, alternativas) {
+  let mejorTexto = "";
+  let mejorPuntaje = -1;
+  alternativas.forEach((texto) => {
+    const puntaje = calcularPuntaje(fraseOriginal, texto);
+    if (puntaje > mejorPuntaje) {
+      mejorPuntaje = puntaje;
+      mejorTexto = texto;
+    }
+  });
+  return { texto: mejorTexto, puntaje: mejorPuntaje };
+}
+
 // "esReintento" evita reintentar más de una vez seguida
 function iniciarGrabacion(fraseOriginal, boton, resultado, esReintento) {
   const grabacion = new Reconocimiento();
   grabacion.lang = "en-GB"; // inglés británico, igual que la voz
-  grabacion.interimResults = false; // solo queremos el resultado final
-  grabacion.maxAlternatives = 3;    // pedimos 3 posibles interpretaciones
+  // Pedimos también resultados "en borrador" mientras hablas: así los vemos
+  // en vivo, y en iPhone a veces son lo único que llega.
+  grabacion.interimResults = true;
+  grabacion.maxAlternatives = 3; // pedimos 3 posibles interpretaciones
 
   const momentoInicio = Date.now();
   let reintentar = false;
+  let terminado = false;      // ya mostramos un puntaje o un error
+  let detectoVoz = false;     // el micrófono notó que alguien hablaba
+  let ultimoBorrador = "";    // lo último que entendió, aunque no sea final
 
   grabacionActual = grabacion;
   boton.classList.add("grabando");
   boton.textContent = "⏹ Detener";
   resultado.hidden = false;
   resultado.className = "resultado";
-  resultado.textContent = "Habla ahora…";
+  resultado.textContent = "Preparando micrófono…";
+
+  // El micrófono ya está grabando: ahora sí puedes hablar.
+  // Usamos dos avisos porque no todos los navegadores mandan los dos.
+  const avisarQueHable = () => {
+    if (!terminado && !ultimoBorrador) resultado.textContent = "🎙️ Habla ahora…";
+  };
+  grabacion.onstart = avisarQueHable;
+  grabacion.onaudiostart = avisarQueHable;
+
+  grabacion.onspeechstart = () => {
+    detectoVoz = true;
+  };
 
   grabacion.onresult = (evento) => {
-    // Revisamos las alternativas y nos quedamos con la de mejor puntaje
-    const alternativas = Array.from(evento.results[0]);
-    let mejorTexto = "";
-    let mejorPuntaje = -1;
-    alternativas.forEach((alternativa) => {
-      const puntaje = calcularPuntaje(fraseOriginal, alternativa.transcript);
-      if (puntaje > mejorPuntaje) {
-        mejorPuntaje = puntaje;
-        mejorTexto = alternativa.transcript;
-      }
-    });
-    mostrarResultado(resultado, mejorPuntaje, mejorTexto);
+    // Juntamos todo lo que ha entendido hasta ahora
+    let texto = "";
+    for (let i = 0; i < evento.results.length; i++) {
+      texto += evento.results[i][0].transcript;
+    }
+    ultimoBorrador = texto.trim();
+
+    const ultimo = evento.results[evento.results.length - 1];
+    if (ultimo.isFinal) {
+      // Resultado definitivo: revisamos sus alternativas y calificamos la mejor
+      const alternativas = Array.from(ultimo).map((alternativa) => alternativa.transcript);
+      const mejor = mejorInterpretacion(fraseOriginal, alternativas);
+      terminado = true;
+      mostrarResultado(resultado, mejor.puntaje, mejor.texto);
+    } else {
+      // Borrador: lo mostramos en vivo
+      resultado.textContent = "🎙️ " + ultimoBorrador + "…";
+    }
   };
 
   grabacion.onerror = (evento) => {
     // Si el iPhone corta la grabación apenas empieza (por ejemplo, por el
     // aviso de permiso), reintentamos una vez sin que tengas que tocar nada.
-    if (evento.error === "aborted" && !esReintento && Date.now() - momentoInicio < 2000) {
+    if (evento.error === "aborted" && !esReintento && !ultimoBorrador &&
+        Date.now() - momentoInicio < 2000) {
       reintentar = true;
       return;
     }
+    // Si ya había entendido algo, lo calificamos en onend en vez de mostrar el error
+    if (ultimoBorrador) return;
+    terminado = true;
     resultado.className = "resultado mal";
-    resultado.textContent = explicarError(evento.error);
+    resultado.textContent = explicarError(evento.error, detectoVoz);
   };
 
   grabacion.onend = () => {
@@ -400,8 +444,14 @@ function iniciarGrabacion(fraseOriginal, boton, resultado, esReintento) {
     }
     boton.classList.remove("grabando");
     boton.textContent = "🎤 Repetir";
-    if (resultado.textContent === "Habla ahora…") {
-      resultado.textContent = explicarError("no-speech");
+    if (terminado) return;
+
+    if (ultimoBorrador) {
+      // Safari terminó sin marcar el texto como final: calificamos el borrador
+      mostrarResultado(resultado, calcularPuntaje(fraseOriginal, ultimoBorrador), ultimoBorrador);
+    } else {
+      resultado.className = "resultado mal";
+      resultado.textContent = explicarError("no-speech", detectoVoz);
     }
   };
 
