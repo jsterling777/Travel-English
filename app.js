@@ -1,5 +1,5 @@
 // Número de versión que se muestra en pantalla. Súbelo junto con VERSION en sw.js.
-const VERSION_APP = 10;
+const VERSION_APP = 11;
 
 // =====================================================================
 // 1. GUARDAR Y LEER EL PROGRESO (localStorage)
@@ -471,6 +471,23 @@ if ("speechSynthesis" in window) {
 const Reconocimiento = window.SpeechRecognition || window.webkitSpeechRecognition;
 let grabacionActual = null; // para no grabar dos frases a la vez
 
+// En iPhone, solo el PRIMER reconocedor de voz que crea la página funciona;
+// los siguientes se cortan solos ("aborted"). Por eso creamos uno solo y lo
+// reutilizamos para todas las frases.
+let reconocedor = null;
+
+function obtenerReconocedor() {
+  if (!reconocedor) {
+    reconocedor = new Reconocimiento();
+    reconocedor.lang = "en-GB"; // inglés británico, igual que la voz
+    // Pedimos también resultados "en borrador" mientras hablas: así los vemos
+    // en vivo, y en iPhone a veces son lo único que llega.
+    reconocedor.interimResults = true;
+    reconocedor.maxAlternatives = 3; // pedimos 3 posibles interpretaciones
+  }
+  return reconocedor;
+}
+
 // Mensajes en español para cada error que puede dar el micrófono
 // "detectoVoz" dice si el micrófono notó que hablabas (ayuda a saber qué falló)
 function explicarError(codigo, detectoVoz) {
@@ -569,12 +586,7 @@ function mostrarError(resultado, codigo, detectoVoz, esReintento) {
 // "esReintento" evita reintentar más de una vez seguida
 function iniciarGrabacion(fraseOriginal, boton, resultado, esReintento) {
   numeroGrabacion++;
-  const grabacion = new Reconocimiento();
-  grabacion.lang = "en-GB"; // inglés británico, igual que la voz
-  // Pedimos también resultados "en borrador" mientras hablas: así los vemos
-  // en vivo, y en iPhone a veces son lo único que llega.
-  grabacion.interimResults = true;
-  grabacion.maxAlternatives = 3; // pedimos 3 posibles interpretaciones
+  const grabacion = obtenerReconocedor();
 
   const momentoInicio = Date.now();
   let reintentar = false;
